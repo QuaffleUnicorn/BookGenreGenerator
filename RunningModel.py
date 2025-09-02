@@ -3,8 +3,8 @@ from DataCleaning import parse_genres, clean_text, collate_fn
 from GenreDataset import GenreDataset
 from GenreEmbeddings import compute_all_embeddings
 from GenreModel import DistilBertForMultiLabelClassification
-from ImageCreation import average_line_graph, cluster_summaries_with_bert, run_bertopic_on_summaries, \
-    plot_wordcloud_for_genre, create_heatmap, create_classification_image
+from ImageCreation import average_line_graph, plot_wordcloud_for_genre, create_heatmap, create_classification_image, \
+    create_genre_pie_chart, run_bertopic_on_summaries
 from Prediction import get_predictions
 transformers.logging.set_verbosity_error()
 import torch
@@ -40,7 +40,8 @@ df['genres'] = df['genres'].apply(lambda g: [genre for genre in g if str(genre).
 # Remove rows where genre list contains 'N'
 df = df[~df['genres'].apply(lambda g: 'N' in g if isinstance(g, list) else False)]
 
-
+#create a pie chart with count of summaries in each genre type
+create_genre_pie_chart(df)
 
 mlb = MultiLabelBinarizer()
 labels = mlb.fit_transform(df['genres'])
@@ -149,8 +150,6 @@ print(classification_report(all_true, all_preds, target_names=mlb.classes_))
 
 create_classification_image(all_true, all_preds, mlb)
 
-
-
 # Get predictions on the testing data
 true_labels, predicted_labels = get_predictions(my_genre_model, testing_dataloader, device)
 
@@ -158,7 +157,7 @@ true_labels, predicted_labels = get_predictions(my_genre_model, testing_dataload
 embeddings = compute_all_embeddings(df)
 
 # Pass to both functions
-df = cluster_summaries_with_bert(df, embeddings=embeddings, n_clusters=5, top_n_genres=8)
+#df = cluster_summaries_with_bert(df, embeddings=embeddings, n_clusters=5, top_n_genres=8)
 df, topic_model = run_bertopic_on_summaries(df, embedding_model=embeddings)
 
 
