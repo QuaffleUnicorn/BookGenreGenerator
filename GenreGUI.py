@@ -7,6 +7,12 @@ import glob
 
 from GenreModel import load_model_and_tokenizer
 
+PRIMARY_COLOR = "#2E86C1"
+SECONDARY_COLOR = "#AED6F1"
+BUTTON_COLOR = "#2980B9"
+TEXT_COLOR = "#FFFFFF"
+
+
 class LandingPage(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
@@ -27,15 +33,13 @@ class LandingPage(tk.Frame):
 
         summary_btn = tk.Button(
             btn_frame, text="Enter Summary & Predict Genre",
-            font=("Arial", 14),
-            width=30,
-            command=lambda: controller.show_frame("GenreGenerator")
+            font=("Segoe UI", 12, "bold"), bg=BUTTON_COLOR, fg="white", relief="raised", bd=2, width=30, command=lambda: controller.show_frame("GenreGenerator")
         )
         summary_btn.grid(row=0, column=0, padx=20, pady=10)
 
         dashboard_btn = tk.Button(
             btn_frame, text="View Dashboard",
-            font=("Arial", 14),
+            font=("Segoe UI", 12, "bold"), bg=BUTTON_COLOR, fg="white", relief="raised", bd=2,
             width=30,
             command=lambda: controller.show_frame("DashboardPage")
         )
@@ -44,7 +48,7 @@ class LandingPage(tk.Frame):
         # 🔻 New Exit Button
         exit_btn = tk.Button(
             btn_frame, text="Exit Application",
-            font=("Arial", 14),
+            font=("Segoe UI", 12, "bold"), bg=BUTTON_COLOR, fg="white", relief="raised", bd=2,
             width=30,
             command=self.controller.quit  # This cleanly exits the Tkinter app
         )
@@ -77,19 +81,25 @@ class GenreGenerator(tk.Frame):
         self.genre_classes = genre_classes
         self.device = device
 
-        label = tk.Label(self, text="Enter a book summary:", font=("Arial", 14))
+        label = tk.Label(self, text="Enter a book summary:", font=("Segoe UI", 12, "bold"), bg='white', bd=2)
         label.pack(pady=10)
 
         self.text_box = tk.Text(self, height=10, width=70)
         self.text_box.pack(pady=5)
 
-        predict_button = tk.Button(self, text="Predict Genre", command=self.predict_genre)
+        predict_button = tk.Button(
+            self, text="Predict Genre", command=self.predict_genre,
+            font=("Segoe UI", 11, "bold"), bg='#2E86C1', fg='white', relief="raised", bd=2
+        )
         predict_button.pack(pady=10)
 
-        back_button = tk.Button(self, text="Back to Home", command=lambda: controller.show_frame("LandingPage"))
+        back_button = tk.Button(
+            self, text="Back to Home", command=lambda: controller.show_frame("LandingPage"),
+            font=("Segoe UI", 11, "bold"), bg='#2E86C1', fg='white', relief="raised", bd=2
+        )
         back_button.pack(pady=5)
 
-        self.result_label = tk.Label(self, text="", font=("Arial", 12), justify="left")
+        self.result_label = tk.Label(self, text="", justify="left", font=("Segoe UI", 16, "bold"))
         self.result_label.pack(pady=10)
 
         # Add image label (initially empty)
@@ -117,10 +127,12 @@ class GenreGenerator(tk.Frame):
         top_indices = probs.argsort()[-3:][::-1]
         top_genres = [(self.genre_classes[i], probs[i] * 100) for i in top_indices]
 
-        # Build result string
+        # Build result string with indicators
         result_text = "Top 3 Predicted Genres:\n\n"
         for genre, confidence in top_genres:
-            result_text += f"- {genre}: {confidence:.1f}%\n"
+            indicator = "✅" if confidence >= 75 else "⚠️"
+            genre_title = genre.title()  # Capitalize each word
+            result_text += f"{indicator} {genre_title}: {confidence:.1f}%\n"
 
         self.result_label.config(text=result_text)
 
@@ -136,7 +148,6 @@ class GenreGenerator(tk.Frame):
             if os.path.exists(image_path):
                 try:
                     img = Image.open(image_path)
-                    # set wordcloud image size
                     img = img.resize((900, 500), Image.LANCZOS)
                     self.img_tk = ImageTk.PhotoImage(img)
                     self.image_label.config(image=self.img_tk)
@@ -161,7 +172,7 @@ class DashboardPage(tk.Frame):
         self.image_paths = sorted(glob.glob(os.path.join(img_dir, "*.png")) + glob.glob(os.path.join(img_dir, "*.jpg")))
 
         if not self.image_paths:
-            label = tk.Label(self, text="No images found in 'graph_plot_images'", font=("Arial", 12), bg="white")
+            label = tk.Label(self, text="No images found in 'graph_plot_images'", font=("Segoe UI", 12, "bold"), bg=BUTTON_COLOR, fg="white", relief="raised", bd=2)
             label.pack(pady=20)
             return
 
@@ -173,64 +184,70 @@ class DashboardPage(tk.Frame):
         self.original_img = None  # To hold the original PIL image
 
         # UI Elements
-        label = tk.Label(self, text="Select a Graph:", bg="white", font=("Arial", 12))
+        label = tk.Label(self, text="Select a Graph:", font=("Segoe UI", 12, "bold"),
+                         bg=BUTTON_COLOR, fg=TEXT_COLOR, relief="raised", bd=2)
         label.pack(pady=(20, 5))
 
         self.selected_image = tk.StringVar()
-        dropdown = ttk.Combobox(self, textvariable=self.selected_image, values=self.image_names, state="readonly", width=40)
+        dropdown = ttk.Combobox(self, textvariable=self.selected_image, values=self.image_names, state="readonly",
+                                width=40)
         dropdown.pack(pady=5)
         dropdown.set("Choose an image")
 
-        open_btn = tk.Button(self, text="Open Graph", command=self.open_selected_image)
+        open_btn = tk.Button(self, text="Open Graph", command=self.open_selected_image,
+                             font=("Segoe UI", 11, "bold"), bg=BUTTON_COLOR, fg=TEXT_COLOR, relief="raised", bd=2)
         open_btn.pack(pady=(0, 15))
 
-        # Create a fixed-size canvas with scrollbars to hold the image
+        # Canvas and scrollbars
         canvas_frame = tk.Frame(self, bg="white")
         canvas_frame.pack(expand=True, fill="both", padx=10, pady=10)
 
-        self.canvas = tk.Canvas(canvas_frame, bg="white", width=700, height=450)  # Fixed size canvas
+        self.canvas = tk.Canvas(canvas_frame, bg="white", width=700, height=450)
         self.canvas.pack(side="left", fill="both", expand=True)
 
-        # Vertical scrollbar
         v_scroll = tk.Scrollbar(canvas_frame, orient="vertical", command=self.canvas.yview)
         v_scroll.pack(side="right", fill="y")
 
-        # Horizontal scrollbar
         h_scroll = tk.Scrollbar(self, orient="horizontal", command=self.canvas.xview)
         h_scroll.pack(fill="x", padx=10)
 
         self.canvas.configure(yscrollcommand=v_scroll.set, xscrollcommand=h_scroll.set)
+        self.image_on_canvas = None
 
-        self.image_on_canvas = None  # To hold the canvas image ID
-
-        # Bottom controls frame for navigation and zoom buttons, centered and stacked
+        # Bottom control frame
         bottom_controls_frame = tk.Frame(self, bg="white")
         bottom_controls_frame.pack(pady=10)
 
-        # Navigation buttons row centered with smaller padding
+        # Navigation Buttons
         nav_frame = tk.Frame(bottom_controls_frame, bg="white")
         nav_frame.grid(row=0, column=0, sticky="ew")
 
-        prev_btn = tk.Button(nav_frame, text="← Previous", command=self.show_previous_image)
+        prev_btn = tk.Button(nav_frame, text="← Previous", command=self.show_previous_image,
+                             font=("Segoe UI", 11, "bold"), bg=BUTTON_COLOR, fg=TEXT_COLOR, relief="raised", bd=2)
         prev_btn.grid(row=0, column=0, padx=5, pady=5)
 
-        next_btn = tk.Button(nav_frame, text="Next →", command=self.show_next_image)
+        next_btn = tk.Button(nav_frame, text="Next →", command=self.show_next_image,
+                             font=("Segoe UI", 11, "bold"), bg=BUTTON_COLOR, fg=TEXT_COLOR, relief="raised", bd=2)
         next_btn.grid(row=0, column=1, padx=5, pady=5)
 
-        # Zoom buttons row centered below navigation buttons with smaller padding
+        # Zoom Buttons
         zoom_frame = tk.Frame(bottom_controls_frame, bg="white")
         zoom_frame.grid(row=1, column=0, sticky="ew")
 
-        zoom_in_btn = tk.Button(zoom_frame, text="Zoom In +", command=self.zoom_in)
+        zoom_in_btn = tk.Button(zoom_frame, text="Zoom In +", command=self.zoom_in,
+                                font=("Segoe UI", 11, "bold"), bg=BUTTON_COLOR, fg=TEXT_COLOR, relief="raised", bd=2)
         zoom_in_btn.grid(row=0, column=0, padx=5, pady=5)
 
-        zoom_out_btn = tk.Button(zoom_frame, text="Zoom Out -", command=self.zoom_out)
+        zoom_out_btn = tk.Button(zoom_frame, text="Zoom Out -", command=self.zoom_out,
+                                 font=("Segoe UI", 11, "bold"), bg=BUTTON_COLOR, fg=TEXT_COLOR, relief="raised", bd=2)
         zoom_out_btn.grid(row=0, column=1, padx=5, pady=5)
 
-        # Back to home button below controls, centered
-        back_btn = tk.Button(self, text="Back to Home", command=lambda: controller.show_frame("LandingPage"))
+        # Back to home button
+        back_btn = tk.Button(self, text="Back to Home", command=lambda: controller.show_frame("LandingPage"),
+                             font=("Segoe UI", 11, "bold"), bg=BUTTON_COLOR, fg=TEXT_COLOR, relief="raised", bd=2)
         back_btn.pack(pady=10)
 
+        # Show first image
         self.update_image_display(self.current_index.get())
 
     def update_image_display(self, index):

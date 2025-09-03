@@ -77,6 +77,7 @@ loss_line_graph_info = []
 
 #list for average validation loss per epoch
 validation_losses = []
+validation_losses_best_epoch = []
 
 # training model
 for epoch in range(epoch_amount):
@@ -108,6 +109,8 @@ for epoch in range(epoch_amount):
 
     average_training_loss = total_loss / len(training_dataloader)
     print(f"Average training loss: {average_training_loss:.4f}")
+
+    validation_losses.append(average_value_loss)
 
     my_genre_model.eval()
     value_loss = 0
@@ -142,7 +145,7 @@ for epoch in range(epoch_amount):
 
         # save loss/validation info for best epoch
         best_loss_epoch = loss_line_graph_info.copy()
-        validation_losses.append(average_value_loss)
+        validation_losses_best_epoch = validation_losses.copy()
         print("Best_loss_epoch and validation_losses updated.")
 
 print("\nTraining is completed!")
@@ -175,7 +178,7 @@ for genre in unique_genres:
     plot_wordcloud_for_genre(topic_model, df, genre)
 
 #line graph
-average_line_graph(best_loss_epoch, validation_losses)
+average_line_graph(best_loss_epoch, validation_losses_best_epoch)
 
 #heatmap
 create_heatmap(all_preds, all_true, mlb)
