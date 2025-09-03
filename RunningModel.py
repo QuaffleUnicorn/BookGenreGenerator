@@ -66,7 +66,7 @@ my_genre_model.to(device)
 optimize = AdamW(my_genre_model.parameters(), lr=2e-5)
 criteria = nn.BCEWithLogitsLoss()
 
-epoch_amount = 1
+epoch_amount = 3
 best_value_loss = float('inf')
 script_dir = os.path.dirname(os.path.abspath(__file__))
 model_save_path = os.path.join(script_dir, "distilbert_genre_model.pt")
@@ -130,7 +130,6 @@ for epoch in range(epoch_amount):
 
     average_value_loss = value_loss / len(testing_dataloader)
     print(f"Validation loss: {average_value_loss:.4f}")
-    validation_losses.append(average_value_loss)
 
     if average_value_loss < best_value_loss:
         best_value_loss = average_value_loss
@@ -141,9 +140,10 @@ for epoch in range(epoch_amount):
         genre_tokenizer.save_pretrained(tokenizer_save_path)
         print(f"Best model was found and saved at epoch {epoch + 1} with value loss {best_value_loss:.4f}")
 
-        # save loss info for best epoch
+        # save loss/validation info for best epoch
         best_loss_epoch = loss_line_graph_info.copy()
-        print("Best_loss_epoch updated.")
+        validation_losses.append(average_value_loss)
+        print("Best_loss_epoch and validation_losses updated.")
 
 print("\nTraining is completed!")
 

@@ -78,17 +78,15 @@ def run_bertopic_on_summaries(df, embedding_model=None):
 
 # Define genre to color palette mapping
 GENRE_COLORS = {
-    'science fiction': ['#00FFE0','#006D8F','#9400D3','#101820','#7FFFD4'],
+    'sci_fi': ['#00FFE0','#006D8F','#9400D3','#101820','#7FFFD4'],
     'romance': ['#FFB6C1','#FF1493','#DB7093','#FFF0F5','#C71585'],
     'fantasy': ['#7B68EE','#6A5ACD','#228B22','#D2691E','#FFD700'],
     'horror': ['#8B0000','#FF4500','#4B0082','#2F4F4F','#6B0000'],
     'adventure': ['#FFA500','#228B22','#1E90FF','#8B4513','#FFD700'],
-    'comedy/satire': ['#FFFF00','#FF69B4','#00CED1','#ADFF2F','#FFA07A'],
     'historical_fiction': ['#8B4513','#A0522D','#C0C0C0','#708090','#F5DEB3'],
-    'mystery/thriller': ['#2F4F4F','#800000','#000000','#4682B4','#A9A9A9'],
-    'nonfiction': ['#4682B4','#2E8B57','#D2B48C','#708090','#FFFFFF'],
-    'philosophy/thought': ['#6A5ACD','#556B2F','#8B008B','#DCDCDC','#483D8B'],
-    'young adult': ['#FF69B4','#9370DB','#40E0D0','#FFD700','#00BFFF']
+    'mystery': ['#2F4F4F','#800000','#000000','#4682B4','#A9A9A9'],
+    'non_fiction': ['#4682B4','#2E8B57','#D2B48C','#708090','#FFFFFF'],
+    'children___ya': ['#FF69B4','#9370DB','#40E0D0','#FFD700','#00BFFF']
 }
 
 
@@ -203,11 +201,16 @@ def create_classification_image(all_true, all_preds, mlb, max_width=500):
 
     table = ax.table(
         cellText=df_report.values,
-        colLabels=df_report.columns,
-        rowLabels=df_report.index,
+        colLabels=[col.upper() for col in df_report.columns],
+        rowLabels=[str(label).upper() for label in df_report.index],
         cellLoc='center',
         loc='center'
     )
+    # Make column headers bold
+    for key, cell in table.get_celld().items():
+        row, col = key
+        if row == 0 or col == -1:
+            cell.set_text_props(weight='bold')
     table.auto_set_font_size(False)
     table.set_fontsize(7)
     table.scale(0.8, 0.8)  # Slightly smaller table
