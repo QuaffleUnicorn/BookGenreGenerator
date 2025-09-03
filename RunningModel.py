@@ -31,14 +31,17 @@ except FileNotFoundError:
 
 # Parse genres and clean text
 df['genres'] = df['genres'].apply(parse_genres)
+
+# normalize genre capitalization
+df['genres'] = df['genres'].apply(
+    lambda genres: [genre.capitalize() for genre in genres if isinstance(genre, str)]
+)
+
 df['summary'] = df['summary'].astype(str).apply(clean_text)
 
 # Remove rows where genres is NaN or contains 'N'
-df = df.dropna(subset=['genres'])  # remove if genres is NaN
+df = df.dropna(subset=['genres'])
 df['genres'] = df['genres'].apply(lambda g: [genre for genre in g if str(genre).lower() != 'nan'] if isinstance(g, list) else g)
-
-# Remove rows where genre list contains 'N'
-df = df[~df['genres'].apply(lambda g: 'N' in g if isinstance(g, list) else False)]
 
 #create a pie chart with count of summaries in each genre type
 create_genre_pie_chart(df)
@@ -69,7 +72,7 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 model_save_path = os.path.join(script_dir, "distilbert_genre_model.pt")
 tokenizer_save_path = os.path.join(script_dir, "distilbert_tokenizer")
 
-# list for creating loss line graph
+# list for creating loss line graph with all epoch info
 loss_line_graph_info = []
 
 #list for average validation loss per epoch
@@ -80,7 +83,7 @@ for epoch in range(epoch_amount):
     print(f"\nEpoch: {epoch + 1}/{epoch_amount}")
     my_genre_model.train()
     total_loss = 0
-    loss_line_graph_info.clear()
+    ##loss_line_graph_info.clear()
 
     for batch_idx, batch in enumerate(training_dataloader):
         optimize.zero_grad()
@@ -153,12 +156,17 @@ create_classification_image(all_true, all_preds, mlb)
 # Get predictions on the testing data
 true_labels, predicted_labels = get_predictions(my_genre_model, testing_dataloader, device)
 
-# Compute embeddings once and reuse
+# Recompute embeddings for the current version of df
+print(f"Number of summaries for BERTopic: {len(df)}")
 embeddings = compute_all_embeddings(df)
 
-# Pass to both functions
-#df = cluster_summaries_with_bert(df, embeddings=embeddings, n_clusters=5, top_n_genres=8)
+# Check alignment
+if embeddings.shape[0] != len(df):
+    raise ValueError(f"Mismatch: embeddings ({embeddings.shape[0]}) != df rows ({len(df)})")
+
+# Run BERTopic
 df, topic_model = run_bertopic_on_summaries(df, embedding_model=embeddings)
+
 
 
 #wordcloud

@@ -7,40 +7,6 @@ import glob
 
 from GenreModel import load_model_and_tokenizer
 
-'''class LandingPage(tk.Frame):
-    def __init__(self, parent, controller):
-        super().__init__(parent)
-        self.controller = controller
-
-        # Prevent frame shrinking to content
-        self.pack_propagate(False)
-
-        # Container frame to center content
-        center_frame = tk.Frame(self)
-        center_frame.place(relx=0.5, rely=0.5, anchor='center')
-
-        header = tk.Label(center_frame, text="Book Genre Classification Model", font=("Arial", 24, "bold"))
-        header.pack(pady=40)
-
-        btn_frame = tk.Frame(center_frame)
-        btn_frame.pack(pady=20)
-
-        summary_btn = tk.Button(
-            btn_frame, text="Enter Summary & Predict Genre",
-            font=("Arial", 14),
-            width=30,
-            command=lambda: controller.show_frame("GenreGenerator")
-        )
-        summary_btn.grid(row=0, column=0, padx=20, pady=10)
-
-        dashboard_btn = tk.Button(
-            btn_frame, text="View Dashboard",
-            font=("Arial", 14),
-            width=30,
-            command=lambda: controller.show_frame("DashboardPage")
-        )
-        dashboard_btn.grid(row=1, column=0, padx=20, pady=10)'''
-
 class LandingPage(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
@@ -143,27 +109,25 @@ class GenreGenerator(tk.Frame):
         attention_mask = attention_mask.to(self.device)
 
         with torch.no_grad():
+            self.model.eval()
             outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
-            probs = torch.sigmoid(outputs)
-            predictions = (probs > 0.5).squeeze().tolist()
+            probs = torch.sigmoid(outputs).cpu().numpy()[0]  # Shape: (num_labels,)
 
-        if isinstance(predictions, bool):
-            predictions = [predictions]
+        # Get top 3 genres with highest probabilities
+        top_indices = probs.argsort()[-3:][::-1]
+        top_genres = [(self.genre_classes[i], probs[i] * 100) for i in top_indices]
 
-        predicted_genres = [genre for genre, pred in zip(self.genre_classes, predictions) if pred]
-
-        result_text = "Predicted genre(s):\n\n"
-        if predicted_genres:
-            result_text += "\n".join(f"- {genre}" for genre in predicted_genres)
-        else:
-            result_text += "(No genres confidently predicted.)"
+        # Build result string
+        result_text = "Top 3 Predicted Genres:\n\n"
+        for genre, confidence in top_genres:
+            result_text += f"- {genre}: {confidence:.1f}%\n"
 
         self.result_label.config(text=result_text)
 
-        # --- Load genre wordcloud image ---
-        if predicted_genres:
-            first_genre = predicted_genres[0]
-            safe_genre_name = first_genre.replace(" ", "_").replace("/", "_")
+        # Use top genre to find and display wordcloud image
+        if top_genres:
+            top_genre_name = top_genres[0][0]
+            safe_genre_name = top_genre_name.replace(" ", "_").replace("/", "_")
 
             image_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wordcloud_images")
             image_filename = f"wordcloud_{safe_genre_name}.png"
@@ -172,8 +136,8 @@ class GenreGenerator(tk.Frame):
             if os.path.exists(image_path):
                 try:
                     img = Image.open(image_path)
-                    #set wordcloud image size
-                    img = img.resize((1200, 600), Image.LANCZOS)
+                    # set wordcloud image size
+                    img = img.resize((900, 500), Image.LANCZOS)
                     self.img_tk = ImageTk.PhotoImage(img)
                     self.image_label.config(image=self.img_tk)
                 except Exception as e:

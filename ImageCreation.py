@@ -32,9 +32,9 @@ def average_line_graph(best_loss_epoch, validation_losses):
         batch_x = list(range(1, len(averaged_batch_losses) + 1))
         epoch_x = [(i + 1) * (len(batch_x) / len(validation_losses)) for i in range(len(validation_losses))]
 
-        plt.figure(figsize=(8, 5))
-        plt.plot(batch_x, averaged_batch_losses, marker='o', linestyle='-', label='Avg Loss (per 100 batches)')
-        plt.plot(epoch_x, validation_losses, marker='s', linestyle='--', color='orange', label='Validation Loss (per epoch)')
+        plt.figure(figsize=(12, 6))
+        plt.plot(batch_x, averaged_batch_losses, marker='o', linestyle='-', label='Avg Training Loss (per 100 batches)')
+        plt.plot(epoch_x, validation_losses, marker='s', linestyle='--', color='orange', label='Average Validation Loss (per epoch)')
 
         plt.xlabel('Batch Group / Epoch')
         plt.ylabel('Loss')
@@ -54,137 +54,8 @@ def average_line_graph(best_loss_epoch, validation_losses):
 
 
 
-'''def apply_kmeans_clustering(embeddings, n_clusters=5):
-    kmeans = KMeans(n_clusters=n_clusters, random_state=42)
-    return kmeans.fit_predict(embeddings)'''
-
-
-'''def visualize_clusters(embeddings, labels, df):
-    from umap import UMAP
-
-    # Reduce to 2D using UMAP
-    umap = UMAP(n_components=2, n_neighbors=50, min_dist=0.4, random_state=42)
-    components = umap.fit_transform(embeddings)
-
-    # Add UMAP results and labels to DataFrame
-    df_plot = df.copy()
-    df_plot["UMAP1"] = components[:, 0]
-    df_plot["UMAP2"] = components[:, 1]
-    df_plot["cluster"] = labels
-
-    # Map cluster number to dominant genre
-    cluster_to_genre = {}
-    for cluster_id in sorted(df_plot["cluster"].unique()):
-        cluster_genres = pd.Series(
-            [g for sublist in df_plot[df_plot["cluster"] == cluster_id]["genres"] for g in sublist]
-        )
-        most_common_genre = cluster_genres.value_counts().idxmax()
-        cluster_to_genre[cluster_id] = most_common_genre
-
-    # Create a new column for labeling
-    df_plot["cluster_label"] = df_plot["cluster"].map(cluster_to_genre)
-
-    # Plot
-    plt.figure(figsize=(10, 7))
-    sns.scatterplot(
-        x="UMAP1",
-        y="UMAP2",
-        hue="cluster_label",
-        data=df_plot,
-        palette="Set2"
-    )
-    plt.title("Summary Clusters (by Dominant Genre) - UMAP")
-    plt.xlabel("UMAP 1")
-    plt.ylabel("UMAP 2")
-    plt.legend(title="Dominant Genre", bbox_to_anchor=(1.05, 1), loc='upper left')
-    plt.tight_layout()
-    plt.savefig(os.path.join(GRAPHS_LOCAL, "cluster_plot_by_genre_umap.png"))
-    plt.show()
-
-    print("Cluster UMAP plot saved as 'cluster_plot_by_genre_umap.png'")'''
-
-
-'''def cluster_summaries_with_bert(df, embeddings=None, n_clusters=5, top_n_genres=10):
-    """
-    Clusters the summaries using KMeans and visualizes them with UMAP.
-
-    Parameters:
-    - df: DataFrame containing 'summary' and 'genres'
-    - embeddings: Optional precomputed embeddings
-    - n_clusters: Number of clusters for KMeans
-    - top_n_genres: Number of most frequent genres to visualize in UMAP plot
-    """
-    if embeddings is None:
-        embeddings = compute_all_embeddings(df)
-
-    labels = apply_kmeans_clustering(embeddings, n_clusters)
-    df["cluster"] = labels
-
-    visualize_clusters_clean(embeddings, labels, df, top_n_genres=top_n_genres)
-
-    score = silhouette_score(embeddings, labels)
-    print(f"\nSilhouette Score: {score:.3f}")
-    return df'''
-
-
-'''def visualize_clusters_clean(embeddings, labels, df, top_n_genres=10):
-    from umap import UMAP  # Already imported globally, but safe here too
-
-    # Reduce to 2D using UMAP
-    umap = UMAP(n_components=2, n_neighbors=50, min_dist=0.4, random_state=42)
-    components = umap.fit_transform(embeddings)
-
-    # Add UMAP results to the DataFrame
-    df_plot = df.copy()
-    df_plot["UMAP1"] = components[:, 0]
-    df_plot["UMAP2"] = components[:, 1]
-    df_plot["cluster"] = labels
-
-    # Explode the genres column for multi-label coloring
-    df_exploded = df_plot.explode("genres")
-
-    # Count top N genres
-    top_genres = df_exploded["genres"].value_counts().nlargest(top_n_genres).index.tolist()
-
-    # Filter only top N genres
-    df_exploded = df_exploded[df_exploded["genres"].isin(top_genres)]
-
-    # Plot
-    plt.figure(figsize=(12, 8))
-    sns.scatterplot(
-        x="UMAP1",
-        y="UMAP2",
-        hue="genres",
-        data=df_exploded,
-        palette="tab10",
-        alpha=0.6
-    )
-
-    plt.title(f"UMAP Projection Colored by Top {top_n_genres} Genres (Multi-label)")
-    plt.xlabel("UMAP 1")
-    plt.ylabel("UMAP 2")
-    plt.legend(title="Genres", bbox_to_anchor=(1.05, 1), loc='upper left')
-    plt.tight_layout()
-    plt.savefig(os.path.join(GRAPHS_LOCAL, f"umap_multilabel_top{top_n_genres}.png"))
-    plt.show()
-
-    print(f"Saved UMAP multi-label cluster plot (top {top_n_genres} genres) as 'umap_multilabel_top{top_n_genres}.png'")'''
-
-
-
 
 def run_bertopic_on_summaries(df, embedding_model=None):
-    """
-    Run BERTopic on the summaries using existing embeddings.
-
-    Parameters:
-    - df: DataFrame with a "summary" column
-    - embedding_model: Optional, if you want to supply your own embeddings (e.g. compute_all_embeddings(df))
-
-    Returns:
-    - df with a new "topic" column added
-    - topic_model instance (to inspect or save)
-    """
     print("Running BERTopic on summaries...")
 
     texts = df["summary"].astype(str).tolist()
@@ -262,8 +133,8 @@ def plot_wordcloud_for_genre(topic_model, df, genre):
 
     # Create wordcloud with no custom font
     wc = WordCloud(
-        width=800,
-        height=400,
+        width=900,
+        height=500,
         background_color='white',
         collocations=False
     )
@@ -273,14 +144,17 @@ def plot_wordcloud_for_genre(topic_model, df, genre):
     wc_recolored = wc.recolor(color_func=random_color_func(colors))
 
     # Plot
-    plt.figure(figsize=(12, 6))
+    plt.figure(figsize=(8, 6))
     plt.imshow(wc_recolored, interpolation='bilinear')
     plt.axis('off')
-    plt.tight_layout()
 
-    # Save file using safe filename
+    # Save with tight bounding box to eliminate whitespace
     safe_genre_name = "".join(c if c.isalnum() else "_" for c in genre)
-    plt.savefig(os.path.join(WORDCLOUD_IMAGE_LOCAL, f"wordcloud_{safe_genre_name}.png"))
+    plt.savefig(
+        os.path.join(WORDCLOUD_IMAGE_LOCAL, f"wordcloud_{safe_genre_name}.png"),
+        bbox_inches='tight',
+        pad_inches=0
+    )
     plt.show()
 
     print(f"Saved word cloud for genre: {genre_display} as wordcloud_{safe_genre_name}.png")
@@ -296,31 +170,57 @@ def create_heatmap(all_preds, all_true, mlb):
     cm = confusion_matrix(y_true_single, y_pred_single)
 
     # Plot heatmap
-    plt.figure(figsize=(12, 10))
+    plt.figure(figsize=(8, 7))
     cm_normalized = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
     sns.heatmap(cm_normalized, annot=True, fmt='.2f', cmap='Blues', xticklabels=mlb.classes_, yticklabels=mlb.classes_)
     plt.xlabel('Predicted Genre')
     plt.ylabel('True Genre')
     plt.title('Confusion Matrix Heatmap')
     plt.tight_layout()
-    plt.savefig(os.path.join(GRAPHS_LOCAL, "confusion_matrix_heatmap.png"))
+    plt.savefig(os.path.join(GRAPHS_LOCAL, f"confusion_matrix_heatmap.png"), bbox_inches='tight', pad_inches=0)
     plt.show()
     print("\nconfusion_matrix_heatmap.png saved!")
 
 #create image with classification info
-def create_classification_image(all_true, all_preds, mlb):
+def create_classification_image(all_true, all_preds, mlb, max_width=500):
+    import matplotlib.pyplot as plt
+    from sklearn.metrics import classification_report
+    import pandas as pd
+    import os
+
     report = classification_report(all_true, all_preds, target_names=mlb.classes_, output_dict=True)
     df_report = pd.DataFrame(report).transpose()
     df_report = df_report[['precision', 'recall', 'f1-score', 'support']]
     df_report = df_report.round(2)
 
-    fig, ax = plt.subplots(figsize=(10, len(df_report) * 0.5))
+    # Dynamic height based on number of rows, but small overall
+    row_height = 0.3
+    fig_width = 5  # in inches, adjust for UI needs
+    fig_height = len(df_report) * row_height
+
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
     ax.axis('off')
-    table = ax.table(cellText=df_report.values, colLabels=df_report.columns, rowLabels=df_report.index, cellLoc='center', loc='center')
-    plt.tight_layout()
+
+    table = ax.table(
+        cellText=df_report.values,
+        colLabels=df_report.columns,
+        rowLabels=df_report.index,
+        cellLoc='center',
+        loc='center'
+    )
+    table.auto_set_font_size(False)
+    table.set_fontsize(7)
+    table.scale(0.8, 0.8)  # Slightly smaller table
+
+    plt.tight_layout(pad=0.2)
+
+    # Save smaller file size and dimensions for UI
     graph_path = os.path.join(GRAPHS_LOCAL, "classification_report.png")
-    plt.savefig(graph_path, dpi=300)
+    plt.savefig(graph_path, dpi=150, bbox_inches='tight')
+    plt.close(fig)
     print(f"\n{os.path.basename(graph_path)} saved!")
+
+
 
 def create_genre_pie_chart(df, min_percent=5):
     # Explode and count genres

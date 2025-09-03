@@ -28,7 +28,7 @@ def get_predictions(model, dataloader, device, threshold=0.5):
     return all_true, all_preds
 
 # Function to get predictions from a dataloader
-def get_predictions(model, dataloader, device, threshold=0.5):
+'''def get_predictions(model, dataloader, device, threshold=0.5):
     model.eval()
     all_preds = []
     all_true = []
@@ -49,4 +49,4 @@ def get_predictions(model, dataloader, device, threshold=0.5):
 
     all_preds = np.vstack(all_preds)
     all_true = np.vstack(all_true)
-    return all_true, all_preds
+    return all_true, all_preds'''
