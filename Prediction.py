@@ -3,8 +3,8 @@ transformers.logging.set_verbosity_error()
 import torch
 import numpy as np
 
-# Function to get predictions from a dataloader
-def get_predictions(model, dataloader, device, threshold=0.5):
+# Function to get predictions from a dataloader // set threshold to .55 from .5 for testing purposes
+def get_predictions(model, dataloader, device, threshold=0.55):
     model.eval()
     all_preds = []
     all_true = []

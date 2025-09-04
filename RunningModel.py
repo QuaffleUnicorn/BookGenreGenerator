@@ -110,7 +110,7 @@ for epoch in range(epoch_amount):
     average_training_loss = total_loss / len(training_dataloader)
     print(f"Average training loss: {average_training_loss:.4f}")
 
-    validation_losses.append(average_value_loss)
+    validation_losses.append(average_training_loss)
 
     my_genre_model.eval()
     value_loss = 0

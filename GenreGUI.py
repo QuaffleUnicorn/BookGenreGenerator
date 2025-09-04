@@ -4,6 +4,8 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 from PIL import Image, ImageTk
 import glob
+import time
+import csv
 
 from GenreModel import load_model_and_tokenizer
 
@@ -160,6 +162,33 @@ class GenreGenerator(tk.Frame):
         else:
             self.image_label.config(image="")  # Clear image if no genres predicted
             print("No genres confidently predicted.")
+
+        # Logging functionality, formatted as CSV
+        try:
+            log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prediction_log.csv")
+            file_exists = os.path.isfile(log_path)
+
+            with open(log_path, mode='a', newline='', encoding='utf-8') as log_file:
+                writer = csv.writer(log_file)
+
+                # Write header only if file is new
+                if not file_exists:
+                    writer.writerow([
+                        "Timestamp", "Summary",
+                        "Top Genre", "Top Confidence",
+                        "Second Genre", "Second Confidence",
+                        "Third Genre", "Third Confidence"
+                    ])
+
+                writer.writerow([
+                    time.strftime('%Y-%m-%d %H:%M:%S'),
+                    user_input,
+                    top_genres[0][0], f"{top_genres[0][1]:.1f}%",
+                    top_genres[1][0], f"{top_genres[1][1]:.1f}%",
+                    top_genres[2][0], f"{top_genres[2][1]:.1f}%"
+                ])
+        except Exception as e:
+            print(f"Error writing to CSV log file: {e}")
 
 
 class DashboardPage(tk.Frame):
