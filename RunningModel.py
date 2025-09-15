@@ -73,7 +73,7 @@ optimize = AdamW(my_genre_model.parameters(), lr=2e-5)
 genre_model_criteria = nn.BCEWithLogitsLoss()
 
 #each epoch is 1 full pass through the dataset for training
-epoch_amount = 1
+epoch_amount = 3
 
 #set initial value for best_value_loss, keeps track of best performing model (whichever has the lowest validation loss)
 best_value_loss = float('inf')
@@ -130,7 +130,7 @@ for epoch in range(epoch_amount):
 
     #after training loop, calculate average training loss per epoch and store for loss analysis
     average_training_loss = total_loss / len(training_dataloader)
-    print(f"Average training loss: {average_training_loss:.4f}")
+    print(f"\nAverage training loss: {average_training_loss:.4f}")
     validation_losses.append(average_training_loss)
 
     #sets model to evaluation mode for validation testing, and initialize variables for validation testing
@@ -164,7 +164,7 @@ for epoch in range(epoch_amount):
 
     #calculates average validation loss per epoch
     average_value_loss = value_loss / len(testing_dataloader)
-    print(f"Validation loss: {average_value_loss:.4f}")
+    print(f"\nValidation loss: {average_value_loss:.4f}")
 
     #checks if current epoch of model is the most accurate on unseen data when compared to previous epochs
     if average_value_loss < best_value_loss:
@@ -177,7 +177,7 @@ for epoch in range(epoch_amount):
         genre_model_tokenizer.save_pretrained(tokenizer_path)
 
         #indicates to console that new best epoch was found
-        print(f"Best model was saved at epoch # {epoch + 1} with loss {best_value_loss:.4f}")
+        print(f"\nBest model was saved at epoch # {epoch + 1} with loss {best_value_loss:.4f}")
 
         #save loss/validation info for new best epoch
         best_loss_epoch = loss_line_graph_info.copy()
@@ -186,7 +186,7 @@ for epoch in range(epoch_amount):
 
 #indicates to console that model training is completed and visualizations for the application are being created from the model info
 print("\nTraining is completed!")
-print("\nPlease wait as application visualizations are created...")
+print("Please wait as application visualizations are created...")
 
 #get predictions on the testing data
 true_labels, predicted_labels = get_predictions(my_genre_model, testing_dataloader, device)
@@ -211,15 +211,15 @@ print(f"Running BERTopic on embeddings...")
 df, topic_model = run_bertopic_on_summaries(df, embedding_model=embeddings)
 
 #create wordclouds for all unique genres
-print(f"Creating wordclouds for {len(df)} genres...")
+print(f"\nCreating wordclouds for {len(df)} genres...")
 unique_genres = df['genres'].explode().dropna().unique()
 for genre in unique_genres:
     plot_wordcloud_for_genre(topic_model, df, genre)
 
 #line graph of training and testing loss info
-print(f"Creating line graph of training and validation information...")
+print(f"\nCreating line graph of training and validation information...")
 average_line_graph(best_loss_epoch, validation_losses_best_epoch)
 
 #heatmap of data
-print(f"Creating a heatmap of training and validation information...")
+print(f"\nCreating a heatmap of training and validation information...")
 create_heatmap(all_genre_predictions, all_true_predictions, mlb)
