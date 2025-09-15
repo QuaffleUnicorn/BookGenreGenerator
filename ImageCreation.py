@@ -11,8 +11,6 @@ from sklearn.metrics import classification_report
 import pandas as pd
 import os
 
-from RunningModel import genre_model_path, genre_loss
-
 #create a folder for graph images to be located
 GRAPHS_LOCAL = "graph_plot_images"
 os.makedirs(GRAPHS_LOCAL, exist_ok=True)

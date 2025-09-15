@@ -73,7 +73,7 @@ optimize = AdamW(my_genre_model.parameters(), lr=2e-5)
 genre_model_criteria = nn.BCEWithLogitsLoss()
 
 #each epoch is 1 full pass through the dataset for training
-epoch_amount = 3
+epoch_amount = 1
 
 #set initial value for best_value_loss, keeps track of best performing model (whichever has the lowest validation loss)
 best_value_loss = float('inf')
