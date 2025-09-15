@@ -1,5 +1,5 @@
 import torch
-from GenreDataset import GenreDataset
+from BookDataset import BookDataset
 from transformers import DistilBertTokenizer
 
 def test_genre_dataset_length():
@@ -7,13 +7,13 @@ def test_genre_dataset_length():
     tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
     texts = ["Book summary one", "Book summary two"]
     labels = [[1, 0, 0], [0, 1, 0]]
-    dataset = GenreDataset(texts, labels, tokenizer)
+    dataset = BookDataset(texts, labels, tokenizer)
     assert len(dataset) == 2
 
 def test_genre_dataset_output_keys():
     #confirms the data being fed into the tokenizer
     tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
-    dataset_test = GenreDataset(["Book Summary"], [[1, 0, 1]], tokenizer)
+    dataset_test = BookDataset(["Book Summary"], [[1, 0, 1]], tokenizer)
     test_item = dataset_test[0]
     assert 'input_ids' in test_item
     assert 'attention_mask' in test_item
