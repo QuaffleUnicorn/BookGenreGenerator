@@ -1,6 +1,7 @@
 import transformers
 transformers.logging.set_verbosity_error()
 import os
+import sys
 import torch
 import torch.nn as nn
 from transformers import DistilBertTokenizer, DistilBertModel
@@ -57,7 +58,13 @@ def load_model_and_tokenizer():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     #get directories needed
-    this_script_directory = os.path.dirname(os.path.abspath(__file__))
+    if getattr(sys, 'frozen', False):
+        #running in a bundle
+        this_script_directory = sys._MEIPASS
+    else:
+        #running in Python
+        this_script_directory = os.path.dirname(os.path.abspath(__file__))
+
     model_path = os.path.join(this_script_directory, "distilbert_genre_model.pt")
     tokenizer_path = os.path.join(this_script_directory, "distilbert_tokenizer")
 
