@@ -18,10 +18,13 @@ import pandas as pd
 import os
 from sklearn.metrics import classification_report
 
+#general DistilBERT Hugging Face documentation used for development: https://huggingface.co/transformers/v2.9.1/model_doc/distilbert.html
+
 #ensure that GPU is being used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 #loading dataset
+#ORIGINAL dataset can be found at: https://www.kaggle.com/datasets/ymaricar/cmu-book-summary-dataset
 column_names = ["summary", "genres"]
 try:
     df = pd.read_csv("cleaned_genre_info", names=column_names, quoting=1, on_bad_lines='skip', engine="python", delimiter='\t')
@@ -44,11 +47,13 @@ df['genres'] = df['genres'].apply(lambda g: [genre for genre in g if str(genre).
 create_genre_pie_chart(df)
 
 #label genres
+#obtained info from https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.MultiLabelBinarizer.html
 mlb = MultiLabelBinarizer()
 labels = mlb.fit_transform(df['genres'])
 print(f"Genres: {mlb.classes_}")
 
 #seperate dataset into training and testing sets
+#see https://huggingface.co/distilbert/distilbert-base-uncased
 genre_model_tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
 training_summaries, testing_summaries, training_genre_labels, testing_genre_labels = train_test_split(df['summary'].tolist(), labels, test_size=0.2, random_state=50)
 
@@ -67,9 +72,11 @@ my_genre_model = DistilBertForMultiLabelClassification(num_labels=len(mlb.classe
 my_genre_model.to(device)
 
 #AdamW optimizer
+#obtained info from https://docs.pytorch.org/docs/stable/generated/torch.optim.AdamW.html
 optimize = AdamW(my_genre_model.parameters(), lr=2e-5)
 
 #loss function for multi-label classification
+#obatined info from https://docs.pytorch.org/docs/stable/generated/torch.nn.BCEWithLogitsLoss.html
 genre_model_criteria = nn.BCEWithLogitsLoss()
 
 #each epoch is 1 full pass through the dataset for training

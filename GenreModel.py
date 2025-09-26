@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from transformers import DistilBertTokenizer, DistilBertModel
 
-
+#general DistilBERT Hugging Face documentation used for development: https://huggingface.co/transformers/v2.9.1/model_doc/distilbert.html
 
 class DistilBertForMultiLabelClassification(nn.Module):
     def __init__(self, num_labels):

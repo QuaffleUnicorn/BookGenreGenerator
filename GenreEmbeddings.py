@@ -3,6 +3,8 @@ import torch
 import numpy as np
 import os
 
+#general DistilBERT Hugging Face documentation used for development: https://huggingface.co/transformers/v2.9.1/model_doc/distilbert.html
+
 #initialize the genre model and tokenizer globally
 tokenizer = DistilBertTokenizerFast.from_pretrained("distilbert-base-uncased")
 model = DistilBertModel.from_pretrained("distilbert-base-uncased")
