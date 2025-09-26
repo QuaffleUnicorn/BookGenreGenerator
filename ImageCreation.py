@@ -1,42 +1,48 @@
 import numpy as np
-
 from GenreEmbeddings import compute_all_embeddings
-from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score, confusion_matrix
+from sklearn.metrics import confusion_matrix
 from bertopic import BERTopic
-import matplotlib.pyplot as plt
 import seaborn as sns
-import pandas as pd
-import os
 from wordcloud import WordCloud
 import random
+from collections import Counter
+import matplotlib.pyplot as plt
 from sklearn.metrics import classification_report
+import pandas as pd
+import os
 
-#create a folder for graphs
+#create a folder for graph images to be located
 GRAPHS_LOCAL = "graph_plot_images"
 os.makedirs(GRAPHS_LOCAL, exist_ok=True)
 
-#create a folder for wordclouds
+#create a folder for wordcloud images to be located
 WORDCLOUD_IMAGE_LOCAL = "wordcloud_images"
 os.makedirs(WORDCLOUD_IMAGE_LOCAL, exist_ok=True)
 
 
+#created loss line graph
 def average_line_graph(best_loss_epoch, validation_losses):
+    #verify loss is available
     if best_loss_epoch:
         # Compute average loss over every 100 batches
         averaged_batch_losses = []
         for i in range(0, len(best_loss_epoch), 100):
             chunk = best_loss_epoch[i:i + 100]
-            avg_loss = sum(chunk) / len(chunk)
-            averaged_batch_losses.append(avg_loss)
+            average_loss = sum(chunk) / len(chunk)
+            averaged_batch_losses.append(average_loss)
 
-        batch_x = list(range(1, len(averaged_batch_losses) + 1))
-        epoch_x = [(i + 1) * (len(batch_x) / len(validation_losses)) for i in range(len(validation_losses))]
+        #generate x-axis values
+        batch_for_x = list(range(1, len(averaged_batch_losses) + 1))
 
-        plt.figure(figsize=(8, 5))
-        plt.plot(batch_x, averaged_batch_losses, marker='o', linestyle='-', label='Avg Loss (per 100 batches)')
-        plt.plot(epoch_x, validation_losses, marker='s', linestyle='--', color='orange', label='Validation Loss (per epoch)')
+        #generate validation loss on same graph for each corresponding position in the 100-batch groups
+        epoch_for_x = [(i + 1) * (len(batch_for_x) / len(validation_losses)) for i in range(len(validation_losses))]
 
+        #plot graph
+        plt.figure(figsize=(12, 6))
+        plt.plot(batch_for_x, averaged_batch_losses, marker='o', linestyle='-', label='Avg Training Loss (per 100 batches)')
+        plt.plot(epoch_for_x, validation_losses, marker='s', linestyle='--', color='orange', label='Average Validation Loss (per epoch)')
+
+        #format graph
         plt.xlabel('Batch Group / Epoch')
         plt.ylabel('Loss')
         plt.title('Training and Validation Loss')
@@ -47,334 +53,60 @@ def average_line_graph(best_loss_epoch, validation_losses):
         # Save the graph
         graph_path = os.path.join(GRAPHS_LOCAL, "point_loss_chart.png")
         plt.savefig(graph_path)
-        plt.show()
         print(f"\n{os.path.basename(graph_path)} saved!")
     else:
+        #skips plotting if there is no info
         print("No loss info to plot.")
 
 
 
 
-def apply_kmeans_clustering(embeddings, n_clusters=5):
-    kmeans = KMeans(n_clusters=n_clusters, random_state=42)
-    return kmeans.fit_predict(embeddings)
-
-
-def visualize_clusters(embeddings, labels, df):
-    from umap import UMAP
-
-    # Reduce to 2D using UMAP
-    umap = UMAP(n_components=2, n_neighbors=50, min_dist=0.4, random_state=42)
-    components = umap.fit_transform(embeddings)
-
-    # Add UMAP results and labels to DataFrame
-    df_plot = df.copy()
-    df_plot["UMAP1"] = components[:, 0]
-    df_plot["UMAP2"] = components[:, 1]
-    df_plot["cluster"] = labels
-
-    # Map cluster number to dominant genre
-    cluster_to_genre = {}
-    for cluster_id in sorted(df_plot["cluster"].unique()):
-        cluster_genres = pd.Series(
-            [g for sublist in df_plot[df_plot["cluster"] == cluster_id]["genres"] for g in sublist]
-        )
-        most_common_genre = cluster_genres.value_counts().idxmax()
-        cluster_to_genre[cluster_id] = most_common_genre
-
-    # Create a new column for labeling
-    df_plot["cluster_label"] = df_plot["cluster"].map(cluster_to_genre)
-
-    # Plot
-    plt.figure(figsize=(10, 7))
-    sns.scatterplot(
-        x="UMAP1",
-        y="UMAP2",
-        hue="cluster_label",
-        data=df_plot,
-        palette="Set2"
-    )
-    plt.title("Summary Clusters (by Dominant Genre) - UMAP")
-    plt.xlabel("UMAP 1")
-    plt.ylabel("UMAP 2")
-    plt.legend(title="Dominant Genre", bbox_to_anchor=(1.05, 1), loc='upper left')
-    plt.tight_layout()
-    plt.savefig(os.path.join(GRAPHS_LOCAL, "cluster_plot_by_genre_umap.png"))
-    plt.show()
-
-    print("Cluster UMAP plot saved as 'cluster_plot_by_genre_umap.png'")
-
-
-def cluster_summaries_with_bert(df, embeddings=None, n_clusters=5, top_n_genres=10):
-    """
-    Clusters the summaries using KMeans and visualizes them with UMAP.
-
-    Parameters:
-    - df: DataFrame containing 'summary' and 'genres'
-    - embeddings: Optional precomputed embeddings
-    - n_clusters: Number of clusters for KMeans
-    - top_n_genres: Number of most frequent genres to visualize in UMAP plot
-    """
-    if embeddings is None:
-        embeddings = compute_all_embeddings(df)
-
-    labels = apply_kmeans_clustering(embeddings, n_clusters)
-    df["cluster"] = labels
-
-    visualize_clusters_clean(embeddings, labels, df, top_n_genres=top_n_genres)
-
-    score = silhouette_score(embeddings, labels)
-    print(f"\nSilhouette Score: {score:.3f}")
-    return df
-
-
-def visualize_clusters_clean(embeddings, labels, df, top_n_genres=10):
-    from umap import UMAP  # Already imported globally, but safe here too
-
-    # Reduce to 2D using UMAP
-    umap = UMAP(n_components=2, n_neighbors=50, min_dist=0.4, random_state=42)
-    components = umap.fit_transform(embeddings)
-
-    # Add UMAP results to the DataFrame
-    df_plot = df.copy()
-    df_plot["UMAP1"] = components[:, 0]
-    df_plot["UMAP2"] = components[:, 1]
-    df_plot["cluster"] = labels
-
-    # Explode the genres column for multi-label coloring
-    df_exploded = df_plot.explode("genres")
-
-    # Count top N genres
-    top_genres = df_exploded["genres"].value_counts().nlargest(top_n_genres).index.tolist()
-
-    # Filter only top N genres
-    df_exploded = df_exploded[df_exploded["genres"].isin(top_genres)]
-
-    # Plot
-    plt.figure(figsize=(12, 8))
-    sns.scatterplot(
-        x="UMAP1",
-        y="UMAP2",
-        hue="genres",
-        data=df_exploded,
-        palette="tab10",
-        alpha=0.6
-    )
-
-    plt.title(f"UMAP Projection Colored by Top {top_n_genres} Genres (Multi-label)")
-    plt.xlabel("UMAP 1")
-    plt.ylabel("UMAP 2")
-    plt.legend(title="Genres", bbox_to_anchor=(1.05, 1), loc='upper left')
-    plt.tight_layout()
-    plt.savefig(os.path.join(GRAPHS_LOCAL, f"umap_multilabel_top{top_n_genres}.png"))
-    plt.show()
-
-    print(f"Saved UMAP multi-label cluster plot (top {top_n_genres} genres) as 'umap_multilabel_top{top_n_genres}.png'")
-
-
-
-
+#assign each summary topic labels
 def run_bertopic_on_summaries(df, embedding_model=None):
-    """
-    Run BERTopic on the summaries using existing embeddings.
-
-    Parameters:
-    - df: DataFrame with a "summary" column
-    - embedding_model: Optional, if you want to supply your own embeddings (e.g. compute_all_embeddings(df))
-
-    Returns:
-    - df with a new "topic" column added
-    - topic_model instance (to inspect or save)
-    """
     print("Running BERTopic on summaries...")
 
-    texts = df["summary"].astype(str).tolist()
+    #convert summaries to a list
+    summary_text = df["summary"].astype(str).tolist()
 
-    # Use precomputed embeddings or compute now
+    #use precomputed embeddings if available, compute embeddings if there are none saved
     if embedding_model is None:
         embeddings = compute_all_embeddings(df)
     else:
         embeddings = embedding_model
 
-    topic_model = BERTopic(verbose=True)
-    topics, probs = topic_model.fit_transform(texts, embeddings)
+    #running BERTopic model, returning summary genres and their probabilities
+    genre_topic_model = BERTopic(verbose=True)
+    topics, probs = genre_topic_model.fit_transform(summary_text, embeddings)
 
+    #add topic to DataFrame
     df["topic"] = topics
 
+    #identifies amount of unique topics
     print(f"Identified {len(set(topics))} topics.")
 
-    return df, topic_model
+    #return results
+    return df, genre_topic_model
 
-
-'''def plot_wordcloud_for_genre(topic_model, df, genre):
-    # Filter summaries that include this genre
-    genre_df = df[df['genres'].apply(lambda x: genre in x)]
-
-    if genre_df.empty:
-        print(f"No data for genre: {genre}")
-        return
-
-    # Get topic frequencies for this genre
-    topic_counts = genre_df['topic'].value_counts()
-
-    # Aggregate keywords and their weights weighted by topic frequency
-    keyword_weights = {}
-
-    for topic_id, count in topic_counts.items():
-        if topic_id == -1:  # skip noise topics
-            continue
-        keywords = topic_model.get_topic(topic_id)  # list of (word, weight)
-        for word, weight in keywords:
-            keyword_weights[word] = keyword_weights.get(word, 0) + weight * count
-
-    if not keyword_weights:
-        print(f"No keywords found for genre: {genre}")
-        return
-
-    # Generate word cloud
-    wc = WordCloud(width=800, height=400, background_color='white')
-    wc.generate_from_frequencies(keyword_weights)
-
-    # Plot
-    plt.figure(figsize=(12, 6))
-    plt.imshow(wc, interpolation='bilinear')
-    plt.axis('off')
-    plt.title(f"Word Cloud for Genre: {genre}")
-    plt.tight_layout()
-
-    # Save file
-    safe_genre_name = "".join(c if c.isalnum() else "_" for c in genre)
-    plt.savefig(os.path.join(WORDCLOUD_IMAGE_LOCAL, f"wordcloud_{safe_genre_name}.png"))
-    plt.show()
-
-    print(f"Saved word cloud for genre: {genre} as wordcloud_{safe_genre_name}.png")'''
-
-'''def plot_wordcloud_for_genre(topic_model, df, genre):
-    # Filter summaries that include this genre
-    genre_df = df[df['genres'].apply(lambda x: genre in x)]
-
-    if genre_df.empty:
-        print(f"No data for genre: {genre}")
-        return
-
-    # Get topic frequencies for this genre
-    topic_counts = genre_df['topic'].value_counts()
-
-    # Aggregate keywords and their weights weighted by topic frequency
-    keyword_weights = {}
-
-    for topic_id, count in topic_counts.items():
-        if topic_id == -1:  # skip noise topics
-            continue
-        keywords = topic_model.get_topic(topic_id)  # list of (word, weight)
-        for word, weight in keywords:
-            keyword_weights[word] = keyword_weights.get(word, 0) + weight * count
-
-    if not keyword_weights:
-        print(f"No keywords found for genre: {genre}")
-        return
-
-    # Boost the genre name to appear prominently in the center
-    boosted_genre_name = genre.lower().replace(" ", "_")
-    keyword_weights[boosted_genre_name] = max(keyword_weights.values()) * 2  # Boost genre name
-
-    # Generate word cloud
-    wc = WordCloud(width=800, height=400, background_color='white', collocations=False)
-    wc.generate_from_frequencies(keyword_weights)
-
-    # Plot
-    plt.figure(figsize=(12, 6))
-    plt.imshow(wc, interpolation='bilinear')
-    plt.axis('off')
-    plt.title(f"Word Cloud for Genre: {genre}")
-    plt.tight_layout()
-
-    # Save file
-    safe_genre_name = "".join(c if c.isalnum() else "_" for c in genre)
-    plt.savefig(os.path.join(WORDCLOUD_IMAGE_LOCAL, f"wordcloud_{safe_genre_name}.png"))
-    plt.show()
-
-    print(f"Saved word cloud for genre: {genre} as wordcloud_{safe_genre_name}.png")'''
 
 # Define genre to color palette mapping
 GENRE_COLORS = {
-    'science fiction': ['#00FFE0','#006D8F','#9400D3','#101820','#7FFFD4'],
+    'sci_fi': ['#00FFE0','#006D8F','#9400D3','#101820','#7FFFD4'],
     'romance': ['#FFB6C1','#FF1493','#DB7093','#FFF0F5','#C71585'],
     'fantasy': ['#7B68EE','#6A5ACD','#228B22','#D2691E','#FFD700'],
     'horror': ['#8B0000','#FF4500','#4B0082','#2F4F4F','#6B0000'],
     'adventure': ['#FFA500','#228B22','#1E90FF','#8B4513','#FFD700'],
-    'comedy/satire': ['#FFFF00','#FF69B4','#00CED1','#ADFF2F','#FFA07A'],
     'historical_fiction': ['#8B4513','#A0522D','#C0C0C0','#708090','#F5DEB3'],
-    'mystery/thriller': ['#2F4F4F','#800000','#000000','#4682B4','#A9A9A9'],
-    'nonfiction': ['#4682B4','#2E8B57','#D2B48C','#708090','#FFFFFF'],
-    'philosophy/thought': ['#6A5ACD','#556B2F','#8B008B','#DCDCDC','#483D8B'],
-    'young adult': ['#FF69B4','#9370DB','#40E0D0','#FFD700','#00BFFF']
+    'mystery': ['#2F4F4F','#800000','#000000','#4682B4','#A9A9A9'],
+    'non_fiction': ['#4682B4','#2E8B57','#D2B48C','#708090','#FFFFFF'],
+    'children___ya': ['#FF69B4','#9370DB','#40E0D0','#FFD700','#00BFFF']
 }
 
 
-def random_color_func(colors):
+#generate a random color for wordcloud
+def random_color_func(wordcloud_colors):
     def color_func(word, font_size, position, orientation, random_state=None, **kwargs):
-        return random.choice(colors)
+        return random.choice(wordcloud_colors)
     return color_func
-
-'''def plot_wordcloud_for_genre(topic_model, df, genre):
-    # Filter summaries that include this genre
-    genre_df = df[df['genres'].apply(lambda x: genre in x)]
-
-    if genre_df.empty:
-        print(f"No data for genre: {genre}")
-        return
-
-    # Get topic frequencies for this genre
-    topic_counts = genre_df['topic'].value_counts()
-
-    # Aggregate keywords and their weights weighted by topic frequency
-    keyword_weights = {}
-
-    for topic_id, count in topic_counts.items():
-        if topic_id == -1:  # skip noise topics
-            continue
-        keywords = topic_model.get_topic(topic_id)  # list of (word, weight)
-        for word, weight in keywords:
-            keyword_weights[word] = keyword_weights.get(word, 0) + weight * count
-
-    if not keyword_weights:
-        print(f"No keywords found for genre: {genre}")
-        return
-
-    # Boost the genre name in ALL CAPS (with spaces, no underscores)
-    genre_display = genre.strip().upper()
-    max_weight = max(keyword_weights.values())
-    keyword_weights[genre_display] = max_weight * 2  # Boost it heavily
-
-    # Get color palette or default grayscale
-    colors = GENRE_COLORS.get(genre.lower(), ['#333333'])
-
-    # Create wordcloud with no custom font
-    wc = WordCloud(
-        width=800,
-        height=400,
-        background_color='white',
-        collocations=False
-    )
-    wc.generate_from_frequencies(keyword_weights)
-
-    # Recolor with custom color function
-    wc_recolored = wc.recolor(color_func=random_color_func(colors))
-
-    # Plot
-    plt.figure(figsize=(12, 6))
-    plt.imshow(wc_recolored, interpolation='bilinear')
-    plt.axis('off')
-    plt.title(f"Word Cloud for Genre: {genre_display}")
-    plt.tight_layout()
-
-    # Save file using safe filename
-    safe_genre_name = "".join(c if c.isalnum() else "_" for c in genre)
-    plt.savefig(os.path.join(WORDCLOUD_IMAGE_LOCAL, f"wordcloud_{safe_genre_name}.png"))
-    plt.show()
-
-    print(f"Saved word cloud for genre: {genre_display} as wordcloud_{safe_genre_name}.png")'''
 
 def plot_wordcloud_for_genre(topic_model, df, genre):
     # Filter summaries that include this genre
@@ -384,16 +116,16 @@ def plot_wordcloud_for_genre(topic_model, df, genre):
         print(f"No data for genre: {genre}")
         return
 
-    # Get topic frequencies for this genre
+    #get topic frequencies
     topic_counts = genre_df['topic'].value_counts()
 
-    # Aggregate keywords and their weights weighted by topic frequency
+    #aggregate keywords and their weights weighted by topic frequency
     keyword_weights = {}
 
     for topic_id, count in topic_counts.items():
-        if topic_id == -1:  # skip noise topics
+        if topic_id == -1:
             continue
-        keywords = topic_model.get_topic(topic_id)  # list of (word, weight)
+        keywords = topic_model.get_topic(topic_id)
         for word, weight in keywords:
             keyword_weights[word] = keyword_weights.get(word, 0) + weight * count
 
@@ -404,68 +136,144 @@ def plot_wordcloud_for_genre(topic_model, df, genre):
     # Boost the genre name in ALL CAPS (with spaces, no underscores)
     genre_display = genre.strip().upper()
     max_weight = max(keyword_weights.values())
-    keyword_weights[genre_display] = max_weight * 2  # Boost it heavily
+    keyword_weights[genre_display] = max_weight * 2
 
-    # Get color palette or default grayscale
+    #color palette if available or default grayscale
     colors = GENRE_COLORS.get(genre.lower(), ['#333333'])
 
-    # Create wordcloud with no custom font
+    #create wordcloud
     wc = WordCloud(
-        width=800,
-        height=400,
+        width=900,
+        height=500,
         background_color='white',
         collocations=False
     )
     wc.generate_from_frequencies(keyword_weights)
 
-    # Recolor with custom color function
+    #color with custom random color function
     wc_recolored = wc.recolor(color_func=random_color_func(colors))
 
-    # Plot
-    plt.figure(figsize=(12, 6))
+    #plot
+    plt.figure(figsize=(8, 6))
     plt.imshow(wc_recolored, interpolation='bilinear')
     plt.axis('off')
-    plt.tight_layout()
 
-    # Save file using safe filename
+    #eliminate whitespace
     safe_genre_name = "".join(c if c.isalnum() else "_" for c in genre)
-    plt.savefig(os.path.join(WORDCLOUD_IMAGE_LOCAL, f"wordcloud_{safe_genre_name}.png"))
-    plt.show()
+    plt.savefig(
+        os.path.join(WORDCLOUD_IMAGE_LOCAL, f"wordcloud_{safe_genre_name}.png"),
+        bbox_inches='tight',
+        pad_inches=0
+    )
 
-    print(f"Saved word cloud for genre: {genre_display} as wordcloud_{safe_genre_name}.png")
+    print(f"Saved word cloud for: {genre_display} as wordcloud_{safe_genre_name}.png")
 
 
 #heatmap
-def create_heatmap(all_preds, all_true, mlb):
-    # Convert multilabel arrays to single-label by argmax (most confident prediction)
-    y_pred_single = np.argmax(all_preds, axis=1)
-    y_true_single = np.argmax(all_true, axis=1)
+def create_heatmap(all_predictions, all_true_info, mlb):
+    #convert multilabel to single-label arrays
+    y_prediction_info = np.argmax(all_predictions, axis=1)
+    y_true_info = np.argmax(all_true_info, axis=1)
 
-    # Create confusion matrix
-    cm = confusion_matrix(y_true_single, y_pred_single)
+    #create confusion matrix
+    cm = confusion_matrix(y_true_info, y_prediction_info)
 
-    # Plot heatmap
-    plt.figure(figsize=(12, 10))
+    #plot
+    plt.figure(figsize=(8, 7))
     cm_normalized = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
     sns.heatmap(cm_normalized, annot=True, fmt='.2f', cmap='Blues', xticklabels=mlb.classes_, yticklabels=mlb.classes_)
     plt.xlabel('Predicted Genre')
-    plt.ylabel('True Genre')
+    plt.ylabel('Verified Genre')
     plt.title('Confusion Matrix Heatmap')
     plt.tight_layout()
-    plt.savefig(os.path.join(GRAPHS_LOCAL, "confusion_matrix_heatmap.png"))
-    plt.show()
+
+    #save heatmap
+    plt.savefig(os.path.join(GRAPHS_LOCAL, f"confusion_matrix_heatmap.png"), bbox_inches='tight', pad_inches=0)
+
     print("\nconfusion_matrix_heatmap.png saved!")
 
 #create image with classification info
-def create_classification_image(all_true, all_preds, mlb):
-    report = classification_report(all_true, all_preds, target_names=mlb.classes_, output_dict=True)
-    df_report = pd.DataFrame(report).transpose()
+def create_classification_image(all_true_genres, all_predictions, mlb, max_width=500):
+
+    genre_model_report = classification_report(all_true_genres, all_predictions, target_names=mlb.classes_, output_dict=True)
+    df_report = pd.DataFrame(genre_model_report).transpose()
     df_report = df_report[['precision', 'recall', 'f1-score', 'support']]
     df_report = df_report.round(2)
 
-    fig, ax = plt.subplots(figsize=(10, len(df_report) * 0.5))
+    #dynamic height
+    row_height = 0.3
+    fig_width = 5
+    fig_height = len(df_report) * row_height
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
     ax.axis('off')
-    table = ax.table(cellText=df_report.values, colLabels=df_report.columns, rowLabels=df_report.index, cellLoc='center', loc='center')
-    plt.tight_layout()
-    plt.savefig("classification_report.png", dpi=300)
 
+    table = ax.table(
+        cellText=df_report.values,
+        colLabels=[col.upper() for col in df_report.columns],
+        rowLabels=[str(label).upper() for label in df_report.index],
+        cellLoc='center',
+        loc='center'
+    )
+    #make column headers bold
+    for key, cell in table.get_celld().items():
+        row, col = key
+        if row == 0 or col == -1:
+            cell.set_text_props(weight='bold')
+
+    table.auto_set_font_size(False)
+    table.set_fontsize(7)
+    table.scale(0.8, 0.8)
+    plt.tight_layout(pad=0.2)
+
+    # save dimensions for UI
+    graph_path = os.path.join(GRAPHS_LOCAL, "classification_report.png")
+    plt.savefig(graph_path, dpi=150, bbox_inches='tight')
+    plt.close(fig)
+
+    print(f"\n{os.path.basename(graph_path)} saved!")
+
+
+
+def create_genre_pie_chart(df, min_genre_percent=5):
+    #explode and count genres
+    all_genres = df['genres'].dropna().explode()
+    genre_counts = Counter(all_genres)
+    total = sum(genre_counts.values())
+
+    #group genres with fewer examples into 'other' on visualization
+    primary_genres = {}
+    other_genres = 0
+    for my_genre, count in genre_counts.items():
+        genre_percent = (count / total) * 100
+        if genre_percent >= min_genre_percent:
+            primary_genres[my_genre] = count
+        else:
+            other_genres += count
+
+    if other_genres > 0:
+        primary_genres['Other - Genres <5%'] = other_genres
+
+    #prepare data for visualization
+    labels = list(primary_genres.keys())
+    sizes = list(primary_genres.values())
+
+    #plot
+    plt.figure(figsize=(12, 8))
+    wedges, texts, autotexts = plt.pie(
+        sizes,
+        startangle=140,
+        autopct='%1.1f%%',
+        wedgeprops={'edgecolor': 'white'}
+    )
+
+    #add legend with labels
+    plt.legend(wedges, labels, title="Genres", loc="center left", bbox_to_anchor=(1.05, 0.5))
+
+    plt.title('Genre Distribution', fontsize=16)
+    plt.axis('equal')
+    plt.tight_layout()
+    graph_path = os.path.join(GRAPHS_LOCAL, "genre_pie_chart.png")
+    plt.savefig(graph_path, bbox_inches='tight')
+
+    #print to console
+    print(f"\n{os.path.basename(graph_path)} saved!")

@@ -1,10 +1,10 @@
 import transformers
 from DataCleaning import parse_genres, clean_text, collate_fn
-from GenreDataset import GenreDataset
+from BookDataset import BookDataset
 from GenreEmbeddings import compute_all_embeddings
 from GenreModel import DistilBertForMultiLabelClassification
-from ImageCreation import average_line_graph, cluster_summaries_with_bert, run_bertopic_on_summaries, \
-    plot_wordcloud_for_genre, create_heatmap, create_classification_image
+from ImageCreation import average_line_graph, plot_wordcloud_for_genre, create_heatmap, create_classification_image, \
+    create_genre_pie_chart, run_bertopic_on_summaries
 from Prediction import get_predictions
 transformers.logging.set_verbosity_error()
 import torch
@@ -14,14 +14,17 @@ from transformers import DistilBertTokenizer
 from torch.optim import AdamW
 from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report
 import pandas as pd
 import os
+from sklearn.metrics import classification_report
+
+#general DistilBERT Hugging Face documentation used for development: https://huggingface.co/transformers/v2.9.1/model_doc/distilbert.html
 
 #ensure that GPU is being used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# loading and preprocessing dataset
+#loading dataset
+#ORIGINAL dataset can be found at: https://www.kaggle.com/datasets/ymaricar/cmu-book-summary-dataset
 column_names = ["summary", "genres"]
 try:
     df = pd.read_csv("cleaned_genre_info", names=column_names, quoting=1, on_bad_lines='skip', engine="python", delimiter='\t')
@@ -29,146 +32,203 @@ except FileNotFoundError:
     print("Dataset not found.")
     exit()
 
-# Parse genres and clean text
+#parse genres and clean text
 df['genres'] = df['genres'].apply(parse_genres)
+
+#normalize genre capitalization
+df['genres'] = df['genres'].apply(lambda genres: [genre.capitalize() for genre in genres if isinstance(genre, str)])
 df['summary'] = df['summary'].astype(str).apply(clean_text)
 
 # Remove rows where genres is NaN or contains 'N'
-df = df.dropna(subset=['genres'])  # remove if genres is NaN
+df = df.dropna(subset=['genres'])
 df['genres'] = df['genres'].apply(lambda g: [genre for genre in g if str(genre).lower() != 'nan'] if isinstance(g, list) else g)
 
-# Remove rows where genre list contains 'N'
-df = df[~df['genres'].apply(lambda g: 'N' in g if isinstance(g, list) else False)]
+#create a pie chart with count of summaries in each genre type
+create_genre_pie_chart(df)
 
-
-
+#label genres
+#obtained info from https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.MultiLabelBinarizer.html
 mlb = MultiLabelBinarizer()
 labels = mlb.fit_transform(df['genres'])
 print(f"Genres: {mlb.classes_}")
 
-genre_tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
-training_texts, testing_texts, training_labels, testing_labels = train_test_split(df['summary'].tolist(), labels, test_size=0.2, random_state=50)
+#seperate dataset into training and testing sets
+#see https://huggingface.co/distilbert/distilbert-base-uncased
+genre_model_tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
+training_summaries, testing_summaries, training_genre_labels, testing_genre_labels = train_test_split(df['summary'].tolist(), labels, test_size=0.2, random_state=50)
 
 
-training_data = GenreDataset(training_texts, training_labels, genre_tokenizer)
-testing_data = GenreDataset(testing_texts, testing_labels, genre_tokenizer)
+#load into BookDataset
+training_model_data = BookDataset(training_summaries, training_genre_labels, genre_model_tokenizer)
+testing_model_data = BookDataset(testing_summaries, testing_genre_labels, genre_model_tokenizer)
 
-training_dataloader = DataLoader(training_data, batch_size=4, shuffle=True, collate_fn=collate_fn)
-testing_dataloader = DataLoader(testing_data, batch_size=4, shuffle=False, collate_fn=collate_fn)
+#load data into DataLoader
+training_dataloader = DataLoader(training_model_data, batch_size=4, shuffle=True, collate_fn=collate_fn)
+testing_dataloader = DataLoader(testing_model_data, batch_size=4, shuffle=False, collate_fn=collate_fn)
 
+#create instance of model class, feeding in multi-hot vectors that represent the unique genres
 my_genre_model = DistilBertForMultiLabelClassification(num_labels=len(mlb.classes_))
+
 my_genre_model.to(device)
 
+#AdamW optimizer
+#obtained info from https://docs.pytorch.org/docs/stable/generated/torch.optim.AdamW.html
 optimize = AdamW(my_genre_model.parameters(), lr=2e-5)
-criteria = nn.BCEWithLogitsLoss()
 
-epoch_amount = 1
+#loss function for multi-label classification
+#obatined info from https://docs.pytorch.org/docs/stable/generated/torch.nn.BCEWithLogitsLoss.html
+genre_model_criteria = nn.BCEWithLogitsLoss()
+
+#each epoch is 1 full pass through the dataset for training
+epoch_amount = 3
+
+#set initial value for best_value_loss, keeps track of best performing model (whichever has the lowest validation loss)
 best_value_loss = float('inf')
-script_dir = os.path.dirname(os.path.abspath(__file__))
-model_save_path = os.path.join(script_dir, "distilbert_genre_model.pt")
-tokenizer_save_path = os.path.join(script_dir, "distilbert_tokenizer")
 
-# list for creating loss line graph
+#get current script directory and save best model to this directory location
+this_script_dir = os.path.dirname(os.path.abspath(__file__))
+genre_model_path = os.path.join(this_script_dir, "distilbert_genre_model.pt")
+tokenizer_path = os.path.join(this_script_dir, "distilbert_tokenizer")
+
+# list for creating loss line graph with all epoch info
 loss_line_graph_info = []
 
 #list for average validation loss per epoch
 validation_losses = []
+validation_losses_best_epoch = []
 
 # training model
 for epoch in range(epoch_amount):
     print(f"\nEpoch: {epoch + 1}/{epoch_amount}")
     my_genre_model.train()
     total_loss = 0
-    loss_line_graph_info.clear()
+    ##loss_line_graph_info.clear()
 
-    for batch_idx, batch in enumerate(training_dataloader):
+    #for each batch number, batch is a dictionary containing inputs and labels
+    for batch_number, batch in enumerate(training_dataloader):
+        #clear previous gradients
         optimize.zero_grad()
 
+        #moves batched inputs and labels into the device
         input_ids = batch['input_ids'].to(device)
         attention_mask = batch['attention_mask'].to(device)
         labels = batch['labels'].to(device)
 
+        #runs a forward pass through current batch and outputs raw logits for predicted scores
         outputs = my_genre_model(input_ids=input_ids, attention_mask=attention_mask)
-        genre_loss = criteria(outputs, labels)  # calculate the loss
 
+        #computes loss between the predictions and true labels
+        genre_loss = genre_model_criteria(outputs, labels)
+
+        #backward pass for backpropagation
         genre_loss.backward()
+
+        #updates model weights using optimizer
         optimize.step()
 
+        #loss value added for later reporting
         total_loss += genre_loss.item()
-
         loss_line_graph_info.append(genre_loss.item())
 
-        if batch_idx % 100 == 0:
-            print(f"Training batch {batch_idx} with loss: {genre_loss.item():.4f}")
+        #prints an update to the console every 100 batches with loss amount of monitoring progress during training
+        if batch_number % 100 == 0:
+            print(f"Training batch # {batch_number} with loss: {genre_loss.item():.4f}")
 
 
+    #after training loop, calculate average training loss per epoch and store for loss analysis
     average_training_loss = total_loss / len(training_dataloader)
-    print(f"Average training loss: {average_training_loss:.4f}")
+    print(f"\nAverage training loss: {average_training_loss:.4f}")
+    validation_losses.append(average_training_loss)
 
+    #sets model to evaluation mode for validation testing, and initialize variables for validation testing
     my_genre_model.eval()
     value_loss = 0
-    all_preds = []
-    all_true = []
+    all_genre_predictions = []
+    all_true_predictions = []
 
+    #prevents calculating gradients during evaluation and stops accidental updating of model weights
     with torch.no_grad():
+        #takes batches from your testing set in dataloader
         for my_batch in testing_dataloader:
+            #move batch data to device (aka GPU)
             input_ids = my_batch['input_ids'].to(device)
             attention_mask = my_batch['attention_mask'].to(device)
             labels = my_batch['labels'].to(device)
 
+            #forward pass through batch
             outputs = my_genre_model(input_ids=input_ids, attention_mask=attention_mask)
-            genre_loss = criteria(outputs, labels)
+
+            #calculate loss per batch and add to running loss total
+            genre_loss = genre_model_criteria(outputs, labels)
             value_loss += genre_loss.item()
 
-            preds = torch.sigmoid(outputs).cpu().numpy() > 0.5
-            all_preds.extend(preds)
-            all_true.extend(labels.cpu().numpy())
+            #convert previous logits to prediction percentages, applies as positive a genre if over 50% certain
+            genre_predictions = torch.sigmoid(outputs).cpu().numpy() > 0.5
 
+            #add predictions to all_predictions list and true labels to all_true_predictions list
+            all_genre_predictions.extend(genre_predictions)
+            all_true_predictions.extend(labels.cpu().numpy())
+
+    #calculates average validation loss per epoch
     average_value_loss = value_loss / len(testing_dataloader)
-    print(f"Validation loss: {average_value_loss:.4f}")
-    validation_losses.append(average_value_loss)
+    print(f"\nValidation loss: {average_value_loss:.4f}")
 
+    #checks if current epoch of model is the most accurate on unseen data when compared to previous epochs
     if average_value_loss < best_value_loss:
+        #if this newest epoch is the best, save the new best model and tokenizer data
         best_value_loss = average_value_loss
         torch.save({
             'genre_model_state_dict': my_genre_model.state_dict(),
             'genre_classes': mlb.classes_
-        }, model_save_path)
-        genre_tokenizer.save_pretrained(tokenizer_save_path)
-        print(f"Best model was found and saved at epoch {epoch + 1} with value loss {best_value_loss:.4f}")
+        }, genre_model_path)
+        genre_model_tokenizer.save_pretrained(tokenizer_path)
 
-        # save loss info for best epoch
+        #indicates to console that new best epoch was found
+        print(f"\nBest model was saved at epoch # {epoch + 1} with loss {best_value_loss:.4f}")
+
+        #save loss/validation info for new best epoch
         best_loss_epoch = loss_line_graph_info.copy()
-        print("Best_loss_epoch updated.")
+        validation_losses_best_epoch = validation_losses.copy()
+        print("Best_loss_epoch and validation_losses updated.")
 
+#indicates to console that model training is completed and visualizations for the application are being created from the model info
 print("\nTraining is completed!")
+print("Please wait as application visualizations are created...")
 
-# VISUAL - classification report to verify model without GUI
-print("\nClassification Report Information: ")
-print(classification_report(all_true, all_preds, target_names=mlb.classes_))
-
-create_classification_image(all_true, all_preds, mlb)
-
-
-
-# Get predictions on the testing data
+#get predictions on the testing data
 true_labels, predicted_labels = get_predictions(my_genre_model, testing_dataloader, device)
 
-# Compute embeddings once and reuse
+#classification report to verify model within console
+#print("\nClassification Report Information: ")
+#print(classification_report(all_true_predictions, all_genre_predictions, target_names=mlb.classes_))
+
+#create classification report image
+create_classification_image(all_true_predictions, all_genre_predictions, mlb)
+
+#compute embeddings for the current version of df
+print(f"Computing embeddings for {len(predicted_labels)} genres...")
 embeddings = compute_all_embeddings(df)
 
-# Pass to both functions
-df = cluster_summaries_with_bert(df, embeddings=embeddings, n_clusters=5, top_n_genres=8)
+#check alignment of embeddings
+if embeddings.shape[0] != len(df):
+    raise ValueError(f"Mismatch: embeddings ({embeddings.shape[0]}) != df rows ({len(df)})")
+
+#run bertopic on embeddings
+print(f"Running BERTopic on embeddings...")
 df, topic_model = run_bertopic_on_summaries(df, embedding_model=embeddings)
 
-
-#wordcloud
+#create wordclouds for all unique genres
+print(f"\nCreating wordclouds for {len(df)} genres...")
 unique_genres = df['genres'].explode().dropna().unique()
 for genre in unique_genres:
     plot_wordcloud_for_genre(topic_model, df, genre)
 
-#line graph
-average_line_graph(best_loss_epoch, validation_losses)
+#line graph of training and testing loss info
+print(f"\nCreating line graph of training and validation information...")
+average_line_graph(best_loss_epoch, validation_losses_best_epoch)
 
-#heatmap
-create_heatmap(all_preds, all_true, mlb)
+#heatmap of data
+print(f"\nCreating a heatmap of training and validation information...")
+create_heatmap(all_genre_predictions, all_true_predictions, mlb)
+
+print(f"\nTraining and image creation are both complete! Please see 'GenreGUI.py' to run application. Thank you!")
