@@ -231,4 +231,4 @@ average_line_graph(best_loss_epoch, validation_losses_best_epoch)
 print(f"\nCreating a heatmap of training and validation information...")
 create_heatmap(all_genre_predictions, all_true_predictions, mlb)
 
-print(f"\nTraining and image creation are both complete! Please see 'GenreGUI.py' to run application. Thank you!")
+print(f"\nTraining and image creation are both complete! Please see 'BookGenreGenerator.py' to run application. Thank you!")
