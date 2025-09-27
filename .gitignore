@@ -185,3 +185,4 @@ cython_debug/
 /.idea
 /distilbert_tokenizer
 distilbert_genre_model.pt
+dist/BookGenreGenerator.exe
